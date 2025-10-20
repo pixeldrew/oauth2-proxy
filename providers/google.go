@@ -70,16 +70,16 @@ var (
 	// Pre-parsed URL of https://www.googleapis.com/oauth2/v3/token.
 	googleDefaultRedeemURL = &url.URL{
 		Scheme: "https",
-		Host:   "www.googleapis.com",
-		Path:   "/oauth2/v3/token",
+		Host:   "oauth2.googleapis.com",
+		Path:   "/token",
 	}
 
 	// Default Validation URL for Google.
 	// Pre-parsed URL of https://www.googleapis.com/oauth2/v1/tokeninfo.
 	googleDefaultValidateURL = &url.URL{
 		Scheme: "https",
-		Host:   "www.googleapis.com",
-		Path:   "/oauth2/v1/tokeninfo",
+		Host:   "oauth2.googleapis.com",
+		Path:   "/tokeninfo",
 	}
 )
 
