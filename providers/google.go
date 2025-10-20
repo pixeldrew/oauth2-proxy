@@ -40,6 +40,8 @@ type GoogleProvider struct {
 	// Refresh. `Authorize` uses the results of this saved in `session.Groups`
 	// Since it is called on every request.
 	groupValidator func(*sessions.SessionState) bool
+
+	setPreferredUsername func(s *sessions.SessionState) error
 }
 
 var _ Provider = (*GoogleProvider)(nil)
@@ -100,10 +102,43 @@ func NewGoogleProvider(p *ProviderData, opts options.GoogleOptions) (*GoogleProv
 		groupValidator: func(*sessions.SessionState) bool {
 			return true
 		},
+
+		setPreferredUsername: func(state *sessions.SessionState) error {
+			return nil
+		},
 	}
 
 	if opts.ServiceAccountJSON != "" || opts.UseApplicationDefaultCredentials {
 		provider.configureGroups(opts)
+	}
+
+	if opts.UseOrganizationId {
+		adminService := getAdminService(opts)
+		provider.setPreferredUsername = func(s *sessions.SessionState) error {
+			user, err := getUserInfo(adminService, s.Email)
+			if err != nil {
+				return err
+			}
+
+			// ExternalIds is a type of admin.UserExternalIds which is defined as:
+			// type UserExternalIds
+			ext, _ := user.ExternalIds.([]interface{})
+			for _, v := range ext {
+				m, _ := v.(map[string]interface{})
+				if m == nil {
+					continue
+				}
+				if t, _ := m["type"].(string); t != "organization" {
+					continue
+				}
+				if val, _ := m["value"].(string); val != "" {
+					s.PreferredUsername = val
+					return nil
+				}
+			}
+
+			return fmt.Errorf("no organization ID found for user %s", s.Email)
+		}
 	}
 
 	return provider, nil
@@ -204,6 +239,7 @@ func (p *GoogleProvider) Redeem(ctx context.Context, redirectURL, code, codeVeri
 
 // EnrichSession checks the listed Google Groups configured and adds any
 // that the user is a member of to session.Groups.
+// if preferred username is configured to be organization ID, it sets that as well.
 func (p *GoogleProvider) EnrichSession(_ context.Context, s *sessions.SessionState) error {
 	// TODO (@NickMeves) - Move to pure EnrichSession logic and stop
 	// reusing legacy `groupValidator`.
@@ -212,7 +248,7 @@ func (p *GoogleProvider) EnrichSession(_ context.Context, s *sessions.SessionSta
 	// populating logic.
 	p.groupValidator(s)
 
-	return nil
+	return p.setPreferredUsername(s)
 }
 
 // SetGroupRestriction configures the GoogleProvider to restrict access to the
@@ -251,7 +287,8 @@ func (p *GoogleProvider) populateAllGroups(adminService *admin.Service) func(s *
 }
 
 // https://developers.google.com/admin-sdk/directory/reference/rest/v1/members/hasMember#authorization-scopes
-var possibleScopesList = [...]string{
+var possibleScopesList = []string{
+	strings.Join([]string{admin.AdminDirectoryGroupMemberReadonlyScope, admin.AdminDirectoryUserReadonlyScope}, " "), // least permissive combination
 	admin.AdminDirectoryGroupMemberReadonlyScope,
 	admin.AdminDirectoryGroupReadonlyScope,
 	admin.AdminDirectoryGroupMemberScope,
@@ -262,7 +299,7 @@ func getOauth2TokenSource(ctx context.Context, opts options.GoogleOptions, scope
 	if opts.UseApplicationDefaultCredentials {
 		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 			TargetPrincipal: getTargetPrincipal(ctx, opts),
-			Scopes:          []string{scope},
+			Scopes:          strings.Split(scope, " "),
 			Subject:         opts.AdminEmail,
 		})
 		if err != nil {
@@ -362,6 +399,16 @@ func getTargetPrincipal(ctx context.Context, opts options.GoogleOptions) (target
 		logger.Fatal("unable to determine Application Default Credentials TargetPrincipal, try overriding with --target-principal instead.")
 	}
 	return targetPrincipal
+}
+
+func getUserInfo(service *admin.Service, email string) (*admin.User, error) {
+	req := service.Users.Get(email)
+	user, err := req.Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user details for %s: %v", email, err)
+	}
+
+	return user, nil
 }
 
 // getUserGroups retrieves all groups that a user is a member of using the Google Admin Directory API

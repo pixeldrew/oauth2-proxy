@@ -230,6 +230,8 @@ type GoogleOptions struct {
 	UseApplicationDefaultCredentials bool `json:"useApplicationDefaultCredentials,omitempty"`
 	// TargetPrincipal is the Google Service Account used for Application Default Credentials
 	TargetPrincipal string `json:"targetPrincipal,omitempty"`
+	// UseOrganizationId indicates whether to use the organization ID as the UserName claim
+	UseOrganizationId bool `json:"useOrganizationId,omitempty"`
 }
 
 type OIDCOptions struct {

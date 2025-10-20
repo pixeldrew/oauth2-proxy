@@ -510,6 +510,7 @@ type LegacyProvider struct {
 	GoogleServiceAccountJSON               string   `flag:"google-service-account-json" cfg:"google_service_account_json"`
 	GoogleUseApplicationDefaultCredentials bool     `flag:"google-use-application-default-credentials" cfg:"google_use_application_default_credentials"`
 	GoogleTargetPrincipal                  string   `flag:"google-target-principal" cfg:"google_target_principal"`
+	GoogleUseOrganizationId                bool     `flag:"google-use-organization-id" cfg:"google_use_organization_id"`
 
 	// These options allow for other providers besides Google, with
 	// potential overrides.
@@ -623,6 +624,7 @@ func legacyGoogleFlagSet() *pflag.FlagSet {
 	flagSet.String("google-service-account-json", "", "the path to the service account json credentials")
 	flagSet.String("google-use-application-default-credentials", "", "use application default credentials instead of service account json (i.e. GKE Workload Identity)")
 	flagSet.String("google-target-principal", "", "the target principal to impersonate when using ADC")
+	flagSet.String("google-use-organization-id", "", "use organization id as preferred username")
 
 	return flagSet
 }
@@ -770,6 +772,7 @@ func (l *LegacyProvider) convert() (Providers, error) {
 			ServiceAccountJSON:               l.GoogleServiceAccountJSON,
 			UseApplicationDefaultCredentials: l.GoogleUseApplicationDefaultCredentials,
 			TargetPrincipal:                  l.GoogleTargetPrincipal,
+			UseOrganizationId:                l.GoogleUseOrganizationId,
 		}
 	case "entra-id":
 		provider.MicrosoftEntraIDConfig = MicrosoftEntraIDOptions{
